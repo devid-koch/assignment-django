@@ -1,11 +1,16 @@
-
 from django.contrib import admin
-from .models import PricingConfig, PricingConfigLog
-from .forms import PricingConfigForm
+from .models import PricingConfig, DayPricingConfig, PricingConfigLog
+from .forms import PricingConfigForm, DayPricingConfigForm
+
+class DayPricingConfigInline(admin.TabularInline):
+    model = DayPricingConfig
+    form = DayPricingConfigForm
+    extra = 1
 
 class PricingConfigAdmin(admin.ModelAdmin):
     form = PricingConfigForm
-    list_display = ('days_of_week', 'distance_base_price', 'distance_additional_price', 'time_multiplier_factor', 'waiting_charges', 'is_active')
+    inlines = [DayPricingConfigInline]
+    list_display = ('config_name', 'is_active')
     actions = ['activate_configs', 'deactivate_configs']
 
     def activate_configs(self, request, queryset):

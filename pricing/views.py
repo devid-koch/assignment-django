@@ -1,10 +1,8 @@
 import json
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from .models import PricingConfig
-from datetime import datetime
+from .models import PricingConfig, DayPricingConfig
 from decimal import Decimal, ROUND_HALF_UP
-
 
 @csrf_exempt
 def calculate_price(request):
@@ -14,31 +12,42 @@ def calculate_price(request):
             distance = Decimal(ride_details.get('distance'))
             time = Decimal(ride_details.get('time'))
             waiting_time = Decimal(ride_details.get('waiting_time'))
-            date = ride_details.get('date')
-            day_of_week = datetime.strptime(date, '%Y-%m-%d').strftime('%a')
+            day = ride_details.get('day').capitalize()
+            config_name = ride_details.get('config_name')
 
-            config = PricingConfig.objects.filter(days_of_week=day_of_week, is_active=True).first()
+            config = PricingConfig.objects.filter(config_name=config_name, is_active=True).first()
             if not config:
-                return JsonResponse({'error': 'No active pricing configuration found for the given day.'}, status=404)
+                return JsonResponse({'error': 'No active pricing configuration found for the given configuration name.'}, status=404)
 
-            if distance <= config.distance_base_kms:
-                base_price = config.distance_base_price
+            day_config = config.day_configs.filter(day_of_week=day).first()
+            if not day_config:
+                return JsonResponse({'error': f'No pricing configuration found for {day}.'}, status=404)
+
+            if distance <= day_config.distance_base_kms:
+                base_price = day_config.distance_base_price
             else:
-                base_price = config.distance_base_price + (distance - config.distance_base_kms) * config.distance_additional_price
+                base_price = day_config.distance_base_price + (distance - day_config.distance_base_kms) * day_config.distance_additional_price
 
             time_multiplier = Decimal('1.00')
             if time > Decimal('1.00'):
-                time_multiplier = config.time_multiplier_factor
+                time_multiplier = day_config.time_multiplier_factor
 
-            waiting_charges = max(Decimal('0.00'), waiting_time - config.initial_waiting_time) * (config.waiting_charges / Decimal('3.00'))
+            waiting_charges = max(Decimal('0.00'), waiting_time - day_config.initial_waiting_time) * (day_config.waiting_charges / Decimal('3.00'))
 
-            # Calculate final price
             final_price = (base_price * time_multiplier) + waiting_charges
 
-            # Round the final price to two decimal places
             final_price = final_price.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
-            return JsonResponse({'price': str(final_price)})
+            return JsonResponse({
+                'price': str(final_price),
+                'details': {
+                    'distance': str(distance),
+                    'time': str(time),
+                    'waiting_time': str(waiting_time),
+                    'day': day,
+                    'config_name': config_name
+                }
+            })
         except json.JSONDecodeError:
             return JsonResponse({'error': 'Invalid JSON data.'}, status=400)
         except (TypeError, ValueError) as e:

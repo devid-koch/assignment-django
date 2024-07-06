@@ -1,0 +1,15 @@
+{% extends 'base_generic.html' %}
+
+{% block content %}
+  <h2>Pricing Configurations</h2>
+  <a href="{% url 'pricing_config_create' %}">Create New Configuration</a>
+  <ul>
+    {% for config in configs %}
+      <li>
+        {{ config.config_name }} - {{ config.get_days_of_week_display }} - Base Price: {{ config.distance_base_price }} - Additional Price: {{ config.distance_additional_price }}
+        <a href="{% url 'pricing_config_edit' config.pk %}">Edit</a> | 
+        <a href="{% url 'pricing_config_delete' config.pk %}">Delete</a>
+      </li>
+    {% endfor %}
+  </ul>
+{% endblock %}
